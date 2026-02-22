@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Výsledky Live</title>
+    <style>
+        body { font-family: 'Segoe UI', Helvetica, Arial, sans-serif; padding: 10px; margin: 0; background-color: #fff; }
+        h2 { text-align: center; font-size: 1.5rem; margin-top: 10px; color: #333; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th { text-align: left; background-color: #f8f9fa; padding: 12px; border-bottom: 2px solid #333; position: sticky; top: 0; }
+        td { padding: 12px; border-bottom: 1px solid #ddd; font-size: 18px; }
+        .row-ticket { font-weight: normal; color: #555; width: 40%; }
+        .row-winner { font-weight: bold; color: #000; font-size: 22px; }
+        .empty-msg { text-align: center; color: #888; margin-top: 50px; }
+    </style>
+</head>
+<body>
+
+    <h2>Aktuální výhry - Live</h2>
+    
+    <table id="mobileTable">
+        <thead>
+            <tr>
+                <th>Čísla lístků</th>
+                <th>Čísla výher</th>
+            </tr>
+        </thead>
+        <tbody id="tableBody">
+            </tbody>
+    </table>
+    <div id="emptyMsg" class="empty-msg">Zatím nebylo nic vylosováno. Očekávejte první tah...</div>
+
+    <script>
+        let lastDataString = ""; // Slouží k detekci, zda se data změnila
+
+        async function fetchLiveData() {
+            try {
+                // Dotaz na server
+                const response = await fetch('api.php');
+                const textData = await response.text();
+                
+                // Pokud jsou data stejná jako při minulé kontrole, nedělej nic (šetří výkon mobilu)
+                if (textData === lastDataString) return;
+                lastDataString = textData;
+                
+                const data = JSON.parse(textData);
+                renderMobileTable(data);
+            } catch (error) {
+                console.error("Nepodařilo se spojit se serverem.", error);
+            }
+        }
+
+        function renderMobileTable(data) {
+            const tbody = document.getElementById('tableBody');
+            const emptyMsg = document.getElementById('emptyMsg');
+            
+            tbody.innerHTML = '';
+            
+            if (!data || Object.keys(data).length === 0) {
+                emptyMsg.style.display = 'block';
+                return;
+            }
+            
+            emptyMsg.style.display = 'none';
+
+            // Seřadíme data podle čísla lístku (1, 2, 3...)
+            const sortedKeys = Object.keys(data).sort((a, b) => a - b);
+
+            sortedKeys.forEach(key => {
+                let row = `<tr>
+                    <td class="row-ticket">${key}</td>
+                    <td class="row-winner">${data[key]}</td>
+                </tr>`;
+                tbody.innerHTML += row;
+            });
+        }
+
+        // První načtení dat hned po spuštění stránky
+        fetchLiveData();
+        
+        // Nastavení automatické aktualizace každé 2 sekundy (2000 milisekund)
+        setInterval(fetchLiveData, 2000);
+    </script>
+</body>
+</html>

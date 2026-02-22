@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tombola - Losování</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; padding: 20px; background-color: #f4f4f4; }
+        h1 { text-align: center; color: #333; }
+        .controls { text-align: center; margin-bottom: 20px; }
+        button { padding: 15px 40px; font-size: 20px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: background 0.2s; }
+        button:hover { background-color: #218838; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+        .grid-container { display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; max-width: 1400px; margin: 0 auto; }
+        .column { background: white; border: 1px solid #ddd; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+        table { width: 100%; border-collapse: collapse; }
+        th { background-color: #f8f9fa; padding: 10px; border-bottom: 2px solid #dee2e6; font-size: 14px; text-align: center; }
+        td { padding: 8px; border-bottom: 1px solid #eee; text-align: center; height: 30px; font-weight: bold; }
+        .winner-cell { color: #007bff; font-size: 18px; }
+        .highlight { color: #dc3545; transform: scale(1.2); transition: all 0.3s; }
+    </style>
+</head>
+<body>
+
+    <h1>Slosování Tomboly</h1>
+    <div class="controls">
+        <button id="drawBtn" onclick="drawNext()">Vylosovat další číslo</button>
+        <button onclick="resetRaffle()" style="background-color: #dc3545; font-size: 14px; padding: 10px 20px; margin-left: 20px;">Resetovat vše</button>
+    </div>
+    <div class="grid-container" id="mainGrid"></div>
+
+    <script>
+        const totalItems = 50;
+        const columns = 5;
+        const itemsPerCol = 10;
+        let drawnNumbers = [];
+        
+        window.onload = function() {
+            renderGrid();
+            loadState();
+        };
+
+        function renderGrid() {
+            const container = document.getElementById('mainGrid');
+            container.innerHTML = '';
+            for (let i = 0; i < columns; i++) {
+                let tableHtml = `<div class="column"><table><thead><tr><th>čísla lístků</th><th>čísla výher</th></tr></thead><tbody>`;
+                for (let j = 1; j <= itemsPerCol; j++) {
+                    let ticketNum = (i * itemsPerCol) + j;
+                    tableHtml += `<tr><td>${ticketNum}</td><td id="win-${ticketNum}" class="winner-cell"></td></tr>`;
+                }
+                tableHtml += `</tbody></table></div>`;
+                container.innerHTML += tableHtml;
+            }
+        }
+
+        async function drawNext() {
+            let currentDrawIndex = 1;
+            while(document.getElementById(`win-${currentDrawIndex}`).innerText !== "" && currentDrawIndex <= totalItems) {
+                currentDrawIndex++;
+            }
+
+            if (currentDrawIndex > totalItems) {
+                alert("Všechna čísla již byla vylosována!");
+                return;
+            }
+
+            const btn = document.getElementById('drawBtn');
+            btn.disabled = true;
+            const targetCell = document.getElementById(`win-${currentDrawIndex}`);
+            
+            let counter = 0;
+            const interval = setInterval(() => {
+                targetCell.innerText = Math.floor(Math.random() * 1000); 
+                counter++;
+            }, 50);
+
+            setTimeout(async () => {
+                clearInterval(interval);
+                let finalNumber;
+                do {
+                    finalNumber = Math.floor(Math.random() * 1000) + 1;
+                } while (drawnNumbers.includes(finalNumber));
+                
+                drawnNumbers.push(finalNumber);
+                targetCell.innerText = finalNumber;
+                targetCell.classList.add('highlight');
+                
+                // Odeslání na server
+                await fetch('api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ticket: currentDrawIndex, winner: finalNumber })
+                });
+                
+                btn.disabled = false;
+            }, 2000);
+        }
+
+        async function loadState() {
+            try {
+                const response = await fetch('api.php');
+                const data = await response.json();
+                if (data && Object.keys(data).length > 0) {
+                    drawnNumbers = Object.values(data);
+                    for (const [key, value] of Object.entries(data)) {
+                        let cell = document.getElementById(`win-${key}`);
+                        if(cell) {
+                            cell.innerText = value;
+                            cell.classList.add('highlight');
+                        }
+                    }
+                }
+            } catch (error) {
+                console.error("Chyba při načítání dat:", error);
+            }
+        }
+
+        async function resetRaffle() {
+            if(confirm("Opravdu chcete smazat celou historii losování pro všechny diváky?")) {
+                await fetch('api.php', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ action: 'clear' })
+                });
+                location.reload();
+            }
+        }
+    </script>
+</body>
+</html>
